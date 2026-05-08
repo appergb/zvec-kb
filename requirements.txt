@@ -1,0 +1,2 @@
+zvec
+sentence-transformers
