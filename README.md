@@ -6,34 +6,70 @@ Lightweight personal vector knowledge base, packaged as a Claude Code **skill**.
 - **Embedding:** [`sentence-transformers`](https://github.com/UKPLab/sentence-transformers) (`paraphrase-multilingual-MiniLM-L12-v2`, 384-d, zh/en bilingual).
 - **Surface:** a Bash-callable Python CLI + a `SKILL.md` so Claude Code auto-invokes it on phrases like "save this", "记下这个", "search my notes", "我之前存过什么".
 
-## Install on a fresh machine
+## Repository layout
 
-```bash
-# 1. Clone into Claude's skill directory so Claude auto-discovers it
-mkdir -p ~/.claude/skills
-git clone https://github.com/appergb/zvec-kb.git ~/.claude/skills/zvec-kb
+This repo follows the standard "skills monorepo" pattern — each skill lives under `skills/<name>/`:
 
-# 2. Install Python deps (~700MB — pulls torch + transformers; one-time)
-pip install -r ~/.claude/skills/zvec-kb/requirements.txt
+```
+zvec-kb/                       # this repo
+├── README.md
+├── LICENSE
+└── skills/
+    └── zvec-kb/               # the skill itself; copy this to ~/.claude/skills/zvec-kb
+        ├── SKILL.md
+        ├── kb.py
+        ├── requirements.txt
+        ├── bin/kb             # universal launcher (auto-uses isolated venv)
+        └── scripts/           # install.sh, doctor.py, quick_*, batch_import, skill_*
 ```
 
-That's it. The first `add` or `query` triggers a one-time ~120MB
-multilingual embedding-model download cached at `~/.cache/huggingface/`.
+## Install on a fresh machine (one-click)
+
+```bash
+# 1. Get the skill folder into Claude's skill directory
+mkdir -p ~/.claude/skills
+git clone https://github.com/appergb/zvec-kb.git /tmp/zvec-kb-repo
+cp -r /tmp/zvec-kb-repo/skills/zvec-kb ~/.claude/skills/zvec-kb
+rm -rf /tmp/zvec-kb-repo
+
+# 2. One-click installer — creates an isolated venv, installs deps,
+#    pre-warms the embedding model, runs an end-to-end doctor check
+bash ~/.claude/skills/zvec-kb/scripts/install.sh
+```
+
+That's it. The installer pulls torch + transformers (~700MB, one-time) into
+`~/.claude/data/zvec-kb/.venv/`, downloads the multilingual embedding model
+(~120MB, cached at `~/.cache/huggingface/`), and verifies a full ZVEC
+round-trip before exiting.
 
 ## Usage
 
+Every command goes through the launcher — it auto-resolves the isolated venv:
+
 ```bash
+KB=~/.claude/skills/zvec-kb/bin/kb
+
 # Save a snippet (idempotent — same text → same id, no duplicates)
-python3 ~/.claude/skills/zvec-kb/kb.py add "Karpathy's 4 LLM coding rules" --tag rules
+"$KB" add "Karpathy's 4 LLM coding rules" --tag rules
 
 # Search semantically (works across zh/en)
-python3 ~/.claude/skills/zvec-kb/kb.py query "如何让 AI 写代码靠谱" --topk 5
+"$KB" query "如何让 AI 写代码靠谱" --topk 5
 
-# List everything
-python3 ~/.claude/skills/zvec-kb/kb.py list
+# Bulk add / batch import / JSON output / export / delete
+"$KB" quick-add --file notes.txt --tag imported
+"$KB" batch-import ~/notes --ext .md .txt
+"$KB" quick-search "embedding" --json --topk 10
+"$KB" export > kb.json
+"$KB" delete <id>
 
-# Delete by id (returned from list/query)
-python3 ~/.claude/skills/zvec-kb/kb.py delete <id>
+# Skill registry — index your Claude Code skill folders
+"$KB" skill-upload ~/.claude/skills/some-skill
+"$KB" skill-list
+"$KB" query "find me a skill that does X"
+
+# Health check / re-install
+"$KB" doctor
+"$KB" install
 ```
 
 Data lives at `~/.claude/data/zvec-kb/` (override with `ZVEC_KB_DIR=...`).
