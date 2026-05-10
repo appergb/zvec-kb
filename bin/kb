@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Universal launcher: routes subcommands to kb.py or scripts/*.py using the
+# isolated venv created by scripts/install.sh. Keeps the system Python clean.
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DATA_DIR="${ZVEC_KB_DIR:-$HOME/.claude/data/zvec-kb}"
+VENV="$DATA_DIR/.venv"
+
+if [ ! -x "$VENV/bin/python" ]; then
+    echo "zvec-kb is not installed yet." >&2
+    echo "run: bash \"$SKILL_DIR/scripts/install.sh\"" >&2
+    exit 127
+fi
+PY="$VENV/bin/python"
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+    add|query|list|delete)
+        exec "$PY" "$SKILL_DIR/kb.py" "$cmd" "$@"
+        ;;
+    quick-add)
+        exec "$PY" "$SKILL_DIR/scripts/quick_add.py" "$@"
+        ;;
+    quick-search|search)
+        exec "$PY" "$SKILL_DIR/scripts/quick_search.py" "$@"
+        ;;
+    batch-import|import)
+        exec "$PY" "$SKILL_DIR/scripts/batch_import.py" "$@"
+        ;;
+    export)
+        exec "$PY" "$SKILL_DIR/scripts/export.py" "$@"
+        ;;
+    skill-upload)
+        exec "$PY" "$SKILL_DIR/scripts/skill_upload.py" "$@"
+        ;;
+    skill-list|skills)
+        exec "$PY" "$SKILL_DIR/scripts/skill_list.py" "$@"
+        ;;
+    doctor)
+        exec "$PY" "$SKILL_DIR/scripts/doctor.py"
+        ;;
+    install|reinstall)
+        exec bash "$SKILL_DIR/scripts/install.sh"
+        ;;
+    -h|--help|help)
+        cat <<EOF
+zvec-kb — lightweight personal vector knowledge base
+
+usage: kb <command> [args...]
+
+core (kb.py):
+  add <text> [--tag T]              save a snippet (idempotent)
+  query <q> [--topk N]              semantic search (text output)
+  list                              list all snippets
+  delete <id>                       delete by id
+
+scripts:
+  quick-add [texts...|--file F]     bulk add (also reads stdin)
+  quick-search <q> [--json]         search with optional JSON output
+  batch-import <dir> [--ext .md]    import a directory recursively
+  export                            dump everything as JSON
+
+skills (Claude Code skill registry):
+  skill-upload <dir>                upload a skill folder (must contain SKILL.md)
+  skill-list [--detail]             list uploaded skills
+
+ops:
+  doctor                            verify install end-to-end
+  install                           run / re-run one-click installer
+
+storage:
+  data dir: \$ZVEC_KB_DIR (default ~/.claude/data/zvec-kb)
+  venv:     \$ZVEC_KB_DIR/.venv
+  model:    \$ZVEC_KB_MODEL (default paraphrase-multilingual-MiniLM-L12-v2)
+EOF
+        ;;
+    *)
+        echo "unknown command: $cmd (try: kb help)" >&2
+        exit 2
+        ;;
+esac
